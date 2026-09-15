@@ -83,7 +83,7 @@ def build_chain() -> Any:
             {"type": "image_url", "image_url": {"url": data_url}}
         ])
         resp = llm.invoke([msg])
-        return resp.content
+        raw = resp.content
         raw = re.sub(r"```(json)?", "", raw).strip()
         return raw
     return single_receipt_chain
