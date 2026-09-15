@@ -63,7 +63,30 @@ def build_chain() -> Any:
     ``deepseek-v4-flash-vision-exp``. The API key is loaded from .env.
     """
     ### YOUR CODE HERE
-    return None
+    import os
+    from langchain_deepseek import ChatDeepSeek
+    from langchain_core.messages import HumanMessage
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    llm = ChatDeepSeek(
+        model="deepseek-v4-flash-vision-exp",
+        api_key=api_key,
+        temperature=0
+    )
+
+    prompt_text = """你是收据解析助手。输入一张超市收据图片，请提取3个数值：1.final_payment：经过ROUNDING之后最终实际支付金额；2.subtotal：收据上的SUBTOTAL金额；3.total_discount：全部折扣总和，正数，不要包含ROUNDING。严格只输出JSON，不要任何额外文字。样例:{\"final_payment\":102.30,\"subtotal\":102.31,\"total_discount\":5.39}"""
+
+    def single_receipt_chain(image_path: Path):
+        data_url = image_data_url(image_path)
+        msg = HumanMessage(content=[
+            {"type": "text", "text": prompt_text},
+            {"type": "image_url", "image_url": {"url": data_url}}
+        ])
+        resp = llm.invoke([msg])
+        return resp.content
+        raw = re.sub(r"```(json)?", "", raw).strip()
+        return raw
+    return single_receipt_chain
 
 
 def answer_queries(chain: Any, images: list[Path]) -> dict[str, Any]:
@@ -79,8 +102,20 @@ def answer_queries(chain: Any, images: list[Path]) -> dict[str, Any]:
     to process independent receipt-extraction prompts in parallel.
     """
     ### YOUR CODE HERE
-    _ = (chain, images)
-    return {QUERY_1: DUMMY_RESPONSE, QUERY_2: DUMMY_RESPONSE}
+    import json
+    sum_final = 0.0
+    sum_without_discount = 0.0
+
+    for img in images:
+        raw_output = chain(img)
+        result = json.loads(raw_output)
+        sum_final += float(result["final_payment"])
+        sum_without_discount += float(result["subtotal"]) + float(result["total_discount"])
+
+    return {
+        QUERY_1: f"HK${sum_final:.2f}",
+        QUERY_2: f"HK${sum_without_discount:.2f}"
+    }
 
 
 # Everything below is provided runner/scoring code. No edits are needed.
