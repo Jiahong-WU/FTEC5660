@@ -64,8 +64,10 @@ def build_chain() -> Any:
     """
     ### YOUR CODE HERE
     import os
+    import re
     from langchain_deepseek import ChatDeepSeek
     from langchain_core.messages import HumanMessage
+    from langchain_core.runnables import RunnableLambda
 
     api_key = os.getenv("DEEPSEEK_API_KEY")
     llm = ChatDeepSeek(
@@ -74,19 +76,28 @@ def build_chain() -> Any:
         temperature=0
     )
 
-    prompt_text = """你是收据解析助手。输入一张超市收据图片，请提取3个数值：1.final_payment：经过ROUNDING之后最终实际支付金额；2.subtotal：收据上的SUBTOTAL金额；3.total_discount：全部折扣总和，正数，不要包含ROUNDING。严格只输出JSON，不要任何额外文字。样例:{\"final_payment\":102.30,\"subtotal\":102.31,\"total_discount\":5.39}"""
+    prompt_text = """你是收据解析助手。输入一张超市收据图片，请提取3个数值：1.final_payment：经过ROUNDING之后最终实际支付金额；2.subtotal：收据上的SUBTOTAL金额；3.total_discount：全部折扣总和，正数，不要包含ROUNDING。严格只输出JSON，不要任何额外文字。样例:{"final_payment":102.30,"subtotal":102.31,"total_discount":5.39}"""
 
-    def single_receipt_chain(image_path: Path):
+    def prepare_multimodal_input(image_path: Path):
         data_url = image_data_url(image_path)
-        msg = HumanMessage(content=[
+        return [HumanMessage(content=[
             {"type": "text", "text": prompt_text},
             {"type": "image_url", "image_url": {"url": data_url}}
-        ])
-        resp = llm.invoke([msg])
-        raw = resp.content
-        raw = re.sub(r"```(json)?", "", raw).strip()
+        ])]
+
+    def parse_json_output(llm_output):
+        raw = llm_output.content
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            return match.group(0)
         return raw
-    return single_receipt_chain
+   
+    chain = (
+        RunnableLambda(prepare_multimodal_input)
+        | llm
+        | RunnableLambda(parse_json_output)
+    )
+    return chain 
 
 
 def answer_queries(chain: Any, images: list[Path]) -> dict[str, Any]:
@@ -103,14 +114,17 @@ def answer_queries(chain: Any, images: list[Path]) -> dict[str, Any]:
     """
     ### YOUR CODE HERE
     import json
-    sum_final = 0.0
-    sum_without_discount = 0.0
-
-    for img in images:
-        raw_output = chain(img)
-        result = json.loads(raw_output)
-        sum_final += float(result["final_payment"])
-        sum_without_discount += float(result["subtotal"]) + float(result["total_discount"])
+    from decimal import Decimal
+    sum_final = Decimal("0.00")
+    sum_without_discount = Decimal("0.00")
+    raw_results = chain.batch(images)
+    for raw_json_str in raw_results:
+        result = json.loads(raw_json_str)
+        f_pay = result.get("final_payment", "0")
+        sub = result.get("subtotal", "0")
+        disc = result.get("total_discount", "0")
+        sum_final += Decimal(str(f_pay))
+        sum_without_discount += Decimal(str(sub)) + Decimal(str(disc))
 
     return {
         QUERY_1: f"HK${sum_final:.2f}",
