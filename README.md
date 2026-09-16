@@ -50,15 +50,14 @@ homework runner.
 
 ## Homework 1 solution: 
 > 
-This solution builds an extraction chain using the DeepSeek multimodal vision model to parse structured numerical fields from supermarket receipt images. I configure the model with zero temperature to encourage deterministic outputs and craft a targeted prompt that constrains responses to JSON containing final payment, subtotal and total discount. Each input image is converted into a base64‑encoded data URL for multimodal input. Since the model occasionally wraps JSON content inside markdown code fences, I implement simple string pre‑processing to strip these markers before deserialisation. Parsed values are aggregated following the assignment requirements: total real expenditure is accumulated from each receipt’s final‑payment value, while the pre‑discount total is computed by summing subtotal and total discount terms, deliberately omitting rounding‑related adjustments. Calculated aggregates are then formatted as standard HKD strings ready for the autograding workflow.
+I developed a LangChain-based processing pipeline to extract structured information from supermarket receipt images. In the build_chain() function, I instantiate the specified multimodal foundation model deepseek-v4-flash-vision-exp. Each receipt image is encoded as a base64 data URL and wrapped into a multimodal HumanMessage, paired with a task-specific prompt that constrains the model to output structured JSON with three target numeric fields: final_payment, subtotal, and total_discount. For better robustness against the unstructured text artifacts that vision-language models often produce, I add a regular expression filtering step to isolate valid JSON payloads from the model’s raw output.
+For the answer_queries() function, I use the built-in chain.batch() method to run batched, parallel inference over the full set of receipt samples. To avoid floating-point errors when summing monetary values, I perform all arithmetic operations using Python’s Decimal type. The aggregation step calculates two key metrics: summing all final_payment values gives the total actual expenditure, while adding subtotal and total_discount together reconstructs the total pre-discount amount. I format all final outputs as HK$XX.XX strings, so each result contains exactly one monetary value and meets the assignment’s formatting rules.
+One key practical limitation comes from the inherent uncertainty of multimodal models: even with carefully designed prompts, visual misrecognition of printed values on receipts can still introduce errors into the final aggregation results.
 ```mermaid
 flowchart LR
-    A[Input folder with receipt images] --> B[Iterate & load each image]
-    B --> C[Encode image to base64]
-    C --> D[LangChain Prompt + DeepSeek‑Flash‑Vision]
-    D --> E[Model outputs structured receipt data]
-    E --> F[Parse numeric values from model response]
-    F --> G[Aggregate total actual payment across receipts]
-    F --> H[Sum original pre‑discount amounts across receipts]
-    G --> I[Return answer: total spent]
-    H --> J[Return answer: total without discount]
+    A[Input list of receipt image Path objects] --> B[RunnableLambda prepare_multimodal_input<br/>Convert image to data‑url multimodal HumanMessage]
+    B --> C[ChatDeepSeek deepseek‑v4‑flash‑vision‑exp vision LLM]
+    C --> D[RunnableLambda parse_json_output<br/>Regex extract JSON string from LLM output]
+    D --> E[answer_queries: chain.batch() parallel inference for all receipts]
+    E --> F[Aggregate: sum final_payment; sum subtotal + total_discount with Decimal]
+    F --> G[Return dict with two queries mapped to HK$XX.XX formatted strings]
