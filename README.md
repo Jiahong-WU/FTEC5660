@@ -51,6 +51,7 @@ homework runner.
 ## Homework 1 solution: 
 > to students: please fill your solution description here.
 This solution builds an extraction chain using the DeepSeek multimodal vision model to parse structured numerical fields from supermarket receipt images. I configure the model with zero temperature to encourage deterministic outputs and craft a targeted prompt that constrains responses to JSON containing final payment, subtotal and total discount. Each input image is converted into a base64‑encoded data URL for multimodal input. Since the model occasionally wraps JSON content inside markdown code fences, I implement simple string pre‑processing to strip these markers before deserialisation. Parsed values are aggregated following the assignment requirements: total real expenditure is accumulated from each receipt’s final‑payment value, while the pre‑discount total is computed by summing subtotal and total discount terms, deliberately omitting rounding‑related adjustments. Calculated aggregates are then formatted as standard HKD strings ready for the autograding workflow.
+```mermaid
 flowchart LR
     A[Input folder with receipt images] --> B[Iterate & load each image]
     B --> C[Encode image to base64]
