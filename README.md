@@ -55,9 +55,9 @@ For the answer_queries() function, I use the built‑in chain.batch() method to 
 One key practical limitation comes from the inherent uncertainty of multimodal models: even with carefully designed prompts, visual misrecognition of printed values on receipts can still introduce errors into the final aggregation results.
 ```mermaid
 flowchart LR
-    A[Input list of receipt image Path objects] --> B[RunnableLambda prepare_multimodal_input<br/>Convert image to data‑url multimodal HumanMessage]
-    B --> C[ChatDeepSeek deepseek‑v4‑flash‑vision‑exp vision LLM]
+    A[Input list of receipt image Path objects] --> B[RunnableLambda prepare_multimodal_input<br/>Convert image to data-url multimodal HumanMessage]
+    B --> C[ChatDeepSeek deepseek-v4-flash-vision-exp vision LLM]
     C --> D[RunnableLambda parse_json_output<br/>Regex extract JSON string from LLM output]
-    D --> E[answer_queries: chain.batch parallel inference for all receipts]
-    E --> F[Aggregate: sum final_payment; sum subtotal + total_discount with Decimal]
+    D --> E[answer_queries chain.batch parallel inference for all receipts]
+    E --> F[Aggregate sum final_payment sum subtotal plus total_discount with Decimal]
     F --> G[Return dict with two queries mapped to HK$XX.XX formatted strings]
